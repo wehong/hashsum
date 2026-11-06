@@ -1,0 +1,122 @@
+# 빌드와 테스트를 실제 Windows / Linux / macOS 에서 실행한다.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  ZIG_VERSION: "0.16.0"
+  PYTHONUTF8: "1"            # Windows 콘솔에서도 테스트 출력(한글)이 깨지지 않도록
+
+jobs:
+  # ------------------------------------------------------------------
+  # 셸 스크립트 버전: Linux / macOS 의 기본 도구로 테스트
+  # ------------------------------------------------------------------
+  unix-script:
+    name: hashsum.sh (${{ matrix.os }}, ${{ matrix.shell }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, shell: /bin/sh }      # dash
+          - { os: ubuntu-latest, shell: /bin/bash }
+          - { os: macos-latest,  shell: /bin/sh }
+          - { os: macos-latest,  shell: /bin/zsh }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        # macOS 는 PATH 를 시스템 폴더로 제한해 기본 도구(md5, shasum)만 쓰는지 확인
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            python3 tests/test_hashsum.py unix/hashsum.sh --shell "${{ matrix.shell }}" \
+              --runner "/usr/bin/env PATH=/usr/bin:/bin:/usr/sbin:/sbin"
+          else
+            python3 tests/test_hashsum.py unix/hashsum.sh --shell "${{ matrix.shell }}"
+          fi
+
+  # ------------------------------------------------------------------
+  # Linux 에서 Windows EXE 크로스 빌드 (build.sh) -> Windows 에서 실행 테스트
+  # ------------------------------------------------------------------
+  cross-build:
+    name: build.sh (Linux -> Windows EXE)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Zig
+        run: python3 -m pip install "ziglang==${ZIG_VERSION}"
+      - name: Build
+        run: ZIG="python3 -m ziglang" ./windows/build.sh all
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hashsum-windows
+          path: build/windows-*/hashsum.exe
+
+  cross-build-test:
+    name: Test cross-built EXE (${{ matrix.arch }})
+    needs: cross-build
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: hashsum-windows
+          path: build
+      - name: Test
+        run: python tests\test_hashsum.py build\windows-${{ matrix.arch }}\hashsum.exe
+
+  # ------------------------------------------------------------------
+  # Windows 에서 build.bat 으로 빌드 (zig / msvc / mingw) + 테스트
+  # ------------------------------------------------------------------
+  build-bat:
+    name: build.bat (${{ matrix.tool }}, ${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: [zig, msvc, mingw]
+        arch: [x86, x64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig
+        if: matrix.tool == 'zig'
+        run: python -m pip install "ziglang==${env:ZIG_VERSION}"
+
+      - name: Set up MSVC
+        if: matrix.tool == 'msvc'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch == 'x86' && 'x86' || 'amd64' }}
+
+      - name: Set up MinGW
+        if: matrix.tool == 'mingw'
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.arch == 'x86' && 'MINGW32' || 'MINGW64' }}
+          install: ${{ matrix.arch == 'x86' && 'mingw-w64-i686-gcc' || 'mingw-w64-x86_64-gcc' }}
+          path-type: inherit
+
+      - name: Build
+        shell: cmd
+        run: |
+          if "${{ matrix.tool }}"=="zig" set ZIG=python -m ziglang
+          if "${{ matrix.tool }}"=="mingw" if "${{ matrix.arch }}"=="x86" set PATH=${{ steps.msys2.outputs.msys2-location }}\mingw32\bin;%PATH%
+          if "${{ matrix.tool }}"=="mingw" if "${{ matrix.arch }}"=="x64" set PATH=${{ steps.msys2.outputs.msys2-location }}\mingw64\bin;%PATH%
+          call windows\build.bat ${{ matrix.arch }} ${{ matrix.tool }}
+
+      - name: Check imports (KERNEL32 / SHELL32 only)
+        shell: cmd
+        run: |
+          python -m pip install -q pefile
+          python -c "import pefile,sys; p=pefile.PE(r'build\windows-${{ matrix.arch }}\hashsum.exe'); d=sorted(e.dll.decode().upper() for e in p.DIRECTORY_ENTRY_IMPORT); print(d); sys.exit(d != ['KERNEL32.DLL','SHELL32.DLL'])"
+
+      - name: Test
+        run: python tests\test_hashsum.py build\windows-${{ matrix.arch }}\hashsum.exe
