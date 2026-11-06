@@ -1,0 +1,38 @@
+// hashsum-gui resources: icons, manifest, version info
+// (numeric constants instead of headers, so zig rc / windres / rc.exe all accept it;
+//  ASCII only, because rc.exe reads the file in the ANSI code page)
+
+// Icon IDs must match IDI_APP / IDI_COPY in hashsum-gui.c
+1 ICON "hashsum-gui.ico"
+2 ICON "copy.ico"
+
+// manifest (24 = RT_MANIFEST, 1 = CREATEPROCESS_MANIFEST_RESOURCE_ID)
+1 24 "hashsum-gui.manifest"
+
+// Version info (1 = VS_VERSION_INFO)
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEFLAGSMASK   0x3F
+FILEFLAGS       0
+FILEOS          0x40004     // VOS_NT_WINDOWS32
+FILETYPE        1           // VFT_APP
+FILESUBTYPE     0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041204B0"    // Korean, Unicode
+        BEGIN
+            VALUE "FileDescription",  "hashsum GUI (CRC32 / MD5 / SHA-1 / SHA-256)"
+            VALUE "FileVersion",      "1.0"
+            VALUE "InternalName",     "hashsum-gui"
+            VALUE "OriginalFilename", "hashsum-gui.exe"
+            VALUE "ProductName",      "hashsum"
+            VALUE "ProductVersion",   "1.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0412, 1200
+    END
+END
