@@ -53,10 +53,15 @@ hashsum.exe [옵션] <파일> [파일2 ...]       (Windows)
 
 ### Windows
 
-[Releases](../../releases) 에서 `hashsum.exe` 를 받아 원하는 폴더에 두고 실행합니다.
-PATH 에 포함된 폴더(예: `C:\Windows` 또는 직접 만든 도구 폴더)에 두면 어디서든 실행할 수 있습니다.
+빌드된 실행 파일이 저장소의 `windows/bin/` 폴더에 들어 있습니다. 원하는 폴더에 복사해서 실행하면 됩니다.
+PATH 에 포함된 폴더(예: 직접 만든 도구 폴더)에 두면 어디서든 실행할 수 있습니다.
 
-- 32비트 EXE 하나로 32비트와 64비트 Windows 에서 모두 실행됩니다.
+| 파일 | 용도 |
+|---|---|
+| `windows/bin/windows-x86/hashsum.exe` | 32비트 EXE (권장). 32비트와 64비트 Windows 에서 모두 실행 |
+| `windows/bin/windows-x64/hashsum.exe` | 64비트 EXE. 64비트 Windows 전용 |
+
+- C 런타임(CRT) 없이 빌드되어 `KERNEL32.dll`, `SHELL32.dll` 만 사용합니다.
 - C 런타임(CRT) 없이 빌드되어 `KERNEL32.dll`, `SHELL32.dll` 만 사용합니다.
   VC++ 재배포 패키지가 설치되지 않은 Windows 7 에서도 실행됩니다.
 - 서명되지 않은 실행 파일이라 처음 실행할 때 SmartScreen 경고가 나올 수 있습니다.
@@ -93,9 +98,9 @@ CRC32 값을 읽어 씁니다. 이 값은 ZIP·PNG 에서 쓰는 표준 CRC32 �
 ### Windows 에서: `build.bat`
 
 ```bat
-windows\build.bat            :: 32비트 EXE -> build\windows-x86\hashsum.exe
-windows\build.bat x64        :: 64비트 EXE -> build\windows-x64\hashsum.exe
-windows\build.bat x86 msvc   :: 컴파일러 지정 (zig | msvc | mingw)
+windows\build\build.bat            :: 32비트 EXE -> windows\bin\windows-x86\hashsum.exe
+windows\build\build.bat x64        :: 64비트 EXE -> windows\bin\windows-x64\hashsum.exe
+windows\build\build.bat x86 msvc   :: 컴파일러 지정 (zig | msvc | mingw)
 ```
 
 컴파일러를 지정하지 않으면 Zig → MSVC → MinGW 순서로 찾습니다.
@@ -109,13 +114,16 @@ windows\build.bat x86 msvc   :: 컴파일러 지정 (zig | msvc | mingw)
 ### Linux / macOS 에서: `build.sh` (크로스 빌드)
 
 ```sh
-./windows/build.sh           # 32비트 EXE
-./windows/build.sh x64       # 64비트 EXE
-./windows/build.sh all       # 둘 다
-ZIG="python3 -m ziglang" ./windows/build.sh all    # Zig 를 pip 로 설치한 경우
+./windows/build/build.sh           # 32비트 EXE -> windows/bin/windows-x86/hashsum.exe
+./windows/build/build.sh x64       # 64비트 EXE -> windows/bin/windows-x64/hashsum.exe
+./windows/build/build.sh all       # 둘 다
+ZIG="python3 -m ziglang" ./windows/build/build.sh all    # Zig 를 pip 로 설치한 경우
 ```
 
 [Zig](https://ziglang.org) 만 있으면 됩니다 (`brew install zig`, 또는 `pip install ziglang`).
+
+두 스크립트 모두 빌드 결과를 `windows/bin/` 에 바로 만들므로, 빌드하면 배포용 실행 파일이 갱신됩니다.
+저장소에 들어 있는 실행 파일은 Zig 0.16.0 으로 빌드했습니다.
 
 ### C 런타임 없이 빌드하는 이유와 주의점
 
@@ -127,39 +135,19 @@ Windows 7 기본 설치에는 최신 C 런타임(UCRT)이 없습니다. 그래�
 - 64비트 정수의 나눗셈이나 변수만큼의 시프트를 쓰지 않는다 (32비트 빌드에서 보조 함수가 필요해짐).
 - 4KB 가 넘는 지역 변수를 두지 않는다 (`__chkstk` 호출이 생김).
 
-빌드한 EXE 가 두 DLL 만 쓰는지는 CI 가 확인합니다.
-
-## 테스트
-
-Python 표준 라이브러리(`zlib`, `hashlib`)로 계산한 값과 출력을 비교합니다.
-해시값(빈 파일, 블록 경계, 1MB·3MB 파일, 한글·특수문자 파일명), 모든 옵션, 오류 처리를 확인합니다.
-
-```sh
-python  tests\test_hashsum.py build\windows-x86\hashsum.exe        # Windows
-python3 tests/test_hashsum.py unix/hashsum.sh                      # Linux / macOS
-python3 tests/test_hashsum.py unix/hashsum.sh --shell zsh          # 셸 지정
-python3 tests/test_hashsum.py build/windows-x86/hashsum.exe --runner wine   # Linux 에서 Wine 으로
-```
-
-GitHub Actions(`.github/workflows/ci.yml`)가 push 할 때마다 다음을 실행합니다.
-
-- 셸 스크립트: Ubuntu(`sh`, `bash`), macOS(`sh`, `zsh`, 시스템 기본 도구만 사용)
-- Windows EXE: `build.bat` 의 zig / msvc / mingw × x86 / x64 빌드와 테스트,
-  `build.sh` 크로스 빌드 결과물을 Windows 에서 실행 테스트
-
 ## 폴더 구성
 
 ```
 windows/
-  hashsum.c        Windows 버전 소스 (단일 파일)
-  build.bat        Windows 에서 빌드 (Zig / MSVC / MinGW)
-  build.sh         Linux / macOS 에서 크로스 빌드 (Zig)
+  bin/
+    windows-x86/hashsum.exe   배포용 32비트 EXE
+    windows-x64/hashsum.exe   배포용 64비트 EXE
+  build/
+    hashsum.c      Windows 버전 소스 (단일 파일)
+    build.bat      Windows 에서 빌드 (Zig / MSVC / MinGW)
+    build.sh       Linux / macOS 에서 크로스 빌드 (Zig)
 unix/
   hashsum.sh       Linux / macOS 버전 (POSIX sh)
-tests/
-  test_hashsum.py  두 버전 공용 테스트
-.github/workflows/
-  ci.yml           GitHub Actions
 CHANGELOG.md       변경 이력
 ```
 

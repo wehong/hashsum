@@ -12,8 +12,9 @@ Windows 버전(`hashsum.exe`)과 셸 스크립트 버전(`hashsum.sh`)은 같은
 ### 변경
 - **Windows**: MSVC 로도 C 런타임 없이 빌드할 수 있도록 소스 보완
   (`#pragma function(memcpy, memset)`, 64비트 정수의 변수 시프트 제거).
-- 저장소 구성: `windows/`, `unix/`, `tests/` 폴더, 빌드 스크립트(`build.bat`, `build.sh`),
-  공용 테스트, GitHub Actions CI 추가.
+- 저장소 구성: 소스와 빌드 스크립트(`build.bat`, `build.sh`)는 `windows/build/`,
+  빌드된 실행 파일(x86, x64)은 `windows/bin/`, 셸 스크립트는 `unix/`. 빌드하면 `windows/bin/` 이 갱신됨.
+- 실행 파일에 빌드 시각을 기록하지 않도록 링크 (Zig / MSVC `/Brepro`, MinGW `--no-insert-timestamp`).
 
 ## 1.5 — 2026-11-06
 

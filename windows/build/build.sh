@@ -4,11 +4,11 @@
 #
 # 사용법 : ./build.sh [x86 | x64 | all]      (기본: x86)
 #
-#   x86   32비트 EXE - Windows 7 이상의 32/64비트 Windows 모두에서 실행
-#   x64   64비트 EXE
-#   all   둘 다
+#   x86      32비트 EXE - Windows 7 이상의 32/64비트 Windows 모두에서 실행
+#   x64      64비트 EXE
+#   all      둘 다
 #
-# 결과물 : build/windows-<arch>/hashsum.exe  (저장소 최상위 기준)
+# 결과물 : windows/bin/windows-<arch>/hashsum.exe
 #
 # 필요한 도구 : Zig (https://ziglang.org)
 #   - 압축을 풀어 PATH 에 추가하거나 패키지 관리자로 설치 (brew install zig 등)
@@ -20,13 +20,14 @@ set -e
 
 ZIG=${ZIG:-zig}
 HERE=$(cd "$(dirname "$0")" && pwd)
-ROOT=$(cd "$HERE/.." && pwd)
+BIN=$(cd "$HERE/.." && pwd)/bin
 SRC="$HERE/hashsum.c"
 
 CFLAGS="-Os -Wall -Wextra -fno-builtin -fno-stack-protector"
 # 진입점 entry, 콘솔 프로그램, 서브시스템 버전 6.1 (= Windows 7)
+# /Brepro : 빌드 시각을 기록하지 않음 (같은 소스면 같은 EXE)
 LDFLAGS="-nostdlib -s -Wl,--entry=entry -Wl,--subsystem,console \
--Wl,--major-subsystem-version,6 -Wl,--minor-subsystem-version,1 -lkernel32 -lshell32"
+-Wl,--major-subsystem-version,6 -Wl,--minor-subsystem-version,1 -Wl,/Brepro -lkernel32 -lshell32"
 
 build() {
     arch=$1
@@ -34,9 +35,9 @@ build() {
         x86) target=x86-windows.win7-gnu ;;
         x64) target=x86_64-windows.win7-gnu ;;
     esac
-    out="$ROOT/build/windows-$arch"
+    out="$BIN/windows-$arch"
     mkdir -p "$out"
-    echo "[zig] $target -> build/windows-$arch/hashsum.exe"
+    echo "[zig] $target -> windows/bin/windows-$arch/hashsum.exe"
     # 컴파일과 링크를 나눈다: 한 번에 하면 MinGW 시작 코드(UCRT 의존)가 붙는다
     $ZIG cc -target "$target" $CFLAGS -c "$SRC" -o "$out/hashsum.o"
     $ZIG cc -target "$target" "$out/hashsum.o" $LDFLAGS -o "$out/hashsum.exe"
